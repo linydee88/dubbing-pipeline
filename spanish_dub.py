@@ -30,6 +30,15 @@ WHISPER_MODEL = "base.en"
 TRANSLATION_MODEL = "Helsinki-NLP/opus-mt-en-es"
 VOXCPM_MODEL = "openbmb/VoxCPM2"
 
+# Proper-noun corrections: applied to the Spanish translation before
+# voice synthesis. Add entries as "wrong" -> "right". Matching is
+# case-insensitive. Example: the translator once turned
+# "Arthur Edward Waite" into "Arthur Edward peso".
+CORRECTIONS = {
+    "arthur edward peso": "Arthur Edward Waite",
+    "peso": "Waite",  # fallback if only the last name gets mangled
+}
+
 # Work directory for temp files (relative to script location)
 WORK_DIR = Path(__file__).parent / "work"
 
@@ -83,11 +92,22 @@ def translate_segments(segments):
     return results
 
 
+def apply_corrections(text):
+    """Apply proper-noun corrections (case-insensitive)."""
+    import re
+    for wrong, right in CORRECTIONS.items():
+        text = re.sub(re.escape(wrong), right, text, flags=re.IGNORECASE)
+    return text
+
+
 def dub_audio(audio: Path, segments, translations):
     """Clone voice and synthesize Spanish audio with VoxCPM2."""
     from voxcpm import VoxCPM
     import soundfile as sf
     import numpy as np
+
+    # Fix known proper-noun mistranslations before synthesis
+    translations = [apply_corrections(t) for t in translations]
 
     print("Loading VoxCPM2 voice cloning model...", flush=True)
     model = VoxCPM.from_pretrained(VOXCPM_MODEL, load_denoiser=False)
