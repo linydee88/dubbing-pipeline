@@ -100,8 +100,10 @@ def dub_audio(audio: Path, segments, translations):
         check=True, capture_output=True,
     )
 
-    # Generate Spanish audio for each segment
-    all_audio = []
+    # Generate Spanish audio for each segment, preserving original timing.
+    # Each segment is placed at its original start time; gaps are silence.
+    # This keeps the dubbed audio the same length as the original.
+    timed_segments = []  # (start_seconds, wav_array)
     sample_rate = None
 
     for i, (seg, spanish) in enumerate(zip(segments, translations)):
@@ -123,12 +125,31 @@ def dub_audio(audio: Path, segments, translations):
             # If this fails, check the voxcpm docs for the correct
             # sample rate attribute.
             sample_rate = model.tts_model.sample_rate
-        all_audio.append(wav)
+        timed_segments.append((seg.start, np.asarray(wav, dtype=np.float32)))
 
-    if not all_audio:
+    if not timed_segments:
         raise ValueError("No audio generated - all translations were empty")
 
-    combined = np.concatenate(all_audio)
+    # Total duration = end of last original segment (or longer if a
+    # generated segment overruns, to avoid clipping).
+    total_seconds = max(seg.end for seg in segments)
+    for start, wav in timed_segments:
+        end = start + len(wav) / sample_rate
+        if end > total_seconds:
+            total_seconds = end
+    total_samples = int(total_seconds * sample_rate) + 1
+    combined = np.zeros(total_samples, dtype=np.float32)
+    for start, wav in timed_segments:
+        offset = int(start * sample_rate)
+        end = offset + len(wav)
+        if end > total_samples:
+            # Extend if a segment overruns the timeline
+            extra = end - total_samples
+            combined = np.pad(combined, (0, extra))
+            total_samples = end
+        combined[offset:end] += wav[: total_samples - offset]
+    # Clip to avoid overflow where segments overlap
+    combined = np.clip(combined, -1.0, 1.0)
 
     # Save dubbed audio as WAV then convert to MP3
     out_wav = audio.with_name(f"{audio.stem}_dubbed_es.wav")
