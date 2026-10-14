@@ -3,6 +3,9 @@
 
 # Transcription
 faster-whisper>=1.0.0
+# NOTE: faster-whisper requires av<14. Newer av versions (19.x) break it
+# with "unexpected keyword argument 'metadata_errors'". Pin to 12.3.0.
+av==12.3.0
 
 # Translation
 transformers>=4.30.0
