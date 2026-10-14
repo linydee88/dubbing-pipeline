@@ -120,10 +120,10 @@ def dub_audio(audio: Path, segments, translations):
         check=True, capture_output=True,
     )
 
-    # Generate Spanish audio for each segment, concatenated smoothly.
-    # After combining, the full dubbed audio is time-stretched with
-    # ffmpeg to match the original audio length exactly: slowed down
-    # if shorter, sped up if longer, untouched if already matching.
+    # Generate Spanish audio for each segment, concatenated in order.
+    # No timing adjustments: the output flows naturally at whatever
+    # length the Spanish comes out to. Adjust to your video in your
+    # editor if needed.
     all_audio = []
     sample_rate = None
 
@@ -158,50 +158,12 @@ def dub_audio(audio: Path, segments, translations):
     sf.write(str(out_wav), combined, sample_rate)
     print(f"Wrote dubbed audio: {out_wav}", flush=True)
 
-    # Match the dubbed length to the original audio length.
-    orig_probe = subprocess.run(
-        ["ffprobe", "-v", "error", "-show_entries", "format=duration",
-         "-of", "default=noprint_wrappers=1:nokey=1", str(audio)],
-        check=True, capture_output=True, text=True,
-    )
-    orig_seconds = float(orig_probe.stdout.strip())
-    dubbed_seconds = len(combined) / sample_rate
-    print(
-        f"Original: {orig_seconds:.1f}s, dubbed: {dubbed_seconds:.1f}s",
-        flush=True,
-    )
     out_mp3 = audio.with_name(f"{audio.stem}_dubbed_es.mp3")
-    if abs(dubbed_seconds - orig_seconds) < 0.5:
-        print("Lengths match, no adjustment needed.", flush=True)
-        subprocess.run(
-            ["ffmpeg", "-y", "-i", str(out_wav), "-codec:a", "libmp3lame",
-             "-q:a", "2", str(out_mp3)],
-            check=True, capture_output=True,
-        )
-    else:
-        # atempo changes speed without changing pitch.
-        # tempo > 1 speeds up, tempo < 1 slows down.
-        tempo = dubbed_seconds / orig_seconds
-        # Chain atempo filters if outside the 0.5-2.0 single-filter range.
-        filters = []
-        t = tempo
-        while t > 2.0:
-            filters.append("atempo=2.0")
-            t /= 2.0
-        while t < 0.5:
-            filters.append("atempo=0.5")
-            t /= 0.5
-        filters.append(f"atempo={t:.4f}")
-        print(
-            f"Adjusting tempo {tempo:.3f}x to match original length...",
-            flush=True,
-        )
-        subprocess.run(
-            ["ffmpeg", "-y", "-i", str(out_wav), "-filter:a",
-             ",".join(filters), "-codec:a", "libmp3lame",
-             "-q:a", "2", str(out_mp3)],
-            check=True, capture_output=True,
-        )
+    subprocess.run(
+        ["ffmpeg", "-y", "-i", str(out_wav), "-codec:a", "libmp3lame",
+         "-q:a", "2", str(out_mp3)],
+        check=True, capture_output=True,
+    )
     print(f"Wrote dubbed MP3: {out_mp3}", flush=True)
 
     out_wav.unlink()
