@@ -101,12 +101,27 @@ def dub_audio(audio: Path, segments, translations):
     )
 
     # Generate Spanish audio for each segment, preserving original timing.
-    # Each segment is placed at its original start time; gaps are silence.
-    # This keeps the dubbed audio the same length as the original.
+    # Each segment is placed at its original start time. If the Spanish
+    # audio is longer than the slot available (until the next segment
+    # starts), it is sped up with ffmpeg atempo to fit without overlap.
+    # Shorter segments leave natural silence. This keeps the dubbed audio
+    # the same length as the original.
     timed_segments = []  # (start_seconds, wav_array)
     sample_rate = None
 
-    for i, (seg, spanish) in enumerate(zip(segments, translations)):
+    # Available duration for each segment = time until next segment starts.
+    # Last segment gets the time until the end of the original audio.
+    total_original = max(seg.end for seg in segments)
+    slots = []
+    for idx, seg in enumerate(segments):
+        if idx + 1 < len(segments):
+            slots.append(segments[idx + 1].start - seg.start)
+        else:
+            slots.append(total_original - seg.start)
+
+    for i, (seg, spanish, slot) in enumerate(
+        zip(segments, translations, slots)
+    ):
         if not spanish.strip():
             continue
         print(
@@ -125,30 +140,37 @@ def dub_audio(audio: Path, segments, translations):
             # If this fails, check the voxcpm docs for the correct
             # sample rate attribute.
             sample_rate = model.tts_model.sample_rate
-        timed_segments.append((seg.start, np.asarray(wav, dtype=np.float32)))
+        wav = np.asarray(wav, dtype=np.float32)
+        wav_seconds = len(wav) / sample_rate
+        if wav_seconds > slot and slot > 0:
+            # Speed up to fit the slot (atempo supports 0.5 to 100.0)
+            tempo = min(wav_seconds / slot, 100.0)
+            tmp_in = WORK_DIR / f"_fit_{i}_in.wav"
+            tmp_out = WORK_DIR / f"_fit_{i}_out.wav"
+            sf.write(str(tmp_in), wav, sample_rate)
+            subprocess.run(
+                ["ffmpeg", "-y", "-i", str(tmp_in),
+                 "-filter:a", f"atempo={tempo:.3f}",
+                 "-ar", str(sample_rate), str(tmp_out)],
+                check=True, capture_output=True,
+            )
+            wav, _ = sf.read(str(tmp_out), dtype="float32")
+            tmp_in.unlink(missing_ok=True)
+            tmp_out.unlink(missing_ok=True)
+            print(f"    (sped up {tempo:.2f}x to fit slot)", flush=True)
+        timed_segments.append((seg.start, wav))
 
     if not timed_segments:
         raise ValueError("No audio generated - all translations were empty")
 
-    # Total duration = end of last original segment (or longer if a
-    # generated segment overruns, to avoid clipping).
-    total_seconds = max(seg.end for seg in segments)
-    for start, wav in timed_segments:
-        end = start + len(wav) / sample_rate
-        if end > total_seconds:
-            total_seconds = end
-    total_samples = int(total_seconds * sample_rate) + 1
+    # Total duration matches the original audio exactly.
+    total_samples = int(total_original * sample_rate) + 1
     combined = np.zeros(total_samples, dtype=np.float32)
     for start, wav in timed_segments:
         offset = int(start * sample_rate)
-        end = offset + len(wav)
-        if end > total_samples:
-            # Extend if a segment overruns the timeline
-            extra = end - total_samples
-            combined = np.pad(combined, (0, extra))
-            total_samples = end
-        combined[offset:end] += wav[: total_samples - offset]
-    # Clip to avoid overflow where segments overlap
+        end = min(offset + len(wav), total_samples)
+        combined[offset:end] += wav[: end - offset]
+    # Clip to avoid overflow where segments touch
     combined = np.clip(combined, -1.0, 1.0)
 
     # Save dubbed audio as WAV then convert to MP3
