@@ -27,7 +27,7 @@ No lip sync needed if your video doesn't show your face (hands-only tutorials, c
 - **Transcription:** ran on an 18-minute real-world audio file, produced 229 segments correctly.
 - **Translation:** all 229 segments translated English to Spanish with Helsinki-NLP opus-mt-en-es. Output inspected and correct.
 - **Voice cloning:** VoxCPM2 completed all 229 segments end to end on a RunPod L4 GPU, October 14, 2026. Output sounds like the speaker's own voice in Spanish.
-- **Timing:** segments are concatenated in their natural flow with no timing adjustments. The dubbed audio will be whatever length the Spanish comes out to; adjust to your video in your editor. (2026-10-14: per-segment timestamp placement and whole-audio time-stretching were both tried and reverted the same day; they caused choppy pauses and unnatural speed changes.)
+- **Timing:** segments are concatenated in their natural flow, then the full dubbed audio is time-stretched with ffmpeg atempo to match the original audio length (slowed down if shorter, sped up if longer).
 - **Proper-noun corrections:** the `CORRECTIONS` dictionary at the top of `dub.py` fixes known mistranslations per language (e.g. Spanish: "Arthur Edward peso" back to "Arthur Edward Waite") before voice synthesis. Add your own entries as you find them.
 - **Script logic:** transcribe, translate, and dub code paths all run clean.
 - **RunPod workflow:** pod creation, PyTorch template, GPU selection, Jupyter terminal access, and file upload all confirmed working.

