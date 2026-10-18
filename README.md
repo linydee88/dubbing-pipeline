@@ -61,6 +61,9 @@ No lip sync needed if your video doesn't show your face (hands-only tutorials, c
    python dub.py pt your-audio.m4a    # Portuguese
    python dub.py hi your-audio.m4a    # Hindi
    python dub.py fr your-audio.m4a    # French
+
+   # Several languages at once (transcribes once, dubs each in turn):
+   python dub.py es tl pt hi fr your-audio.m4a
    ```
 7. Download the `your-audio_dubbed_es.mp3` (or `_dubbed_tl.mp3`) file when it's done
 8. Drop it onto your video in CapCut, Premiere, or any editor

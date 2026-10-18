@@ -14,15 +14,22 @@ No lip sync needed if your video doesn't show your face (e.g. hands-only tarot r
 cooking videos, screen recordings). Just swap the audio track in your editor.
 
 Usage:
-    python dub.py LANG AUDIO.mp3 [AUDIO2.mp3 ...]
+    python dub.py LANG [LANG2 ...] AUDIO.mp3 [AUDIO2.mp3 ...]
 
     LANG is a language code, e.g.:
         es = Spanish
         tl = Tagalog (Filipino)
+        pt = Portuguese
+        hi = Hindi
+        fr = French
+
+    Give several language codes to dub into all of them in one run.
+    Transcription runs once and is reused for every language.
 
 Examples:
     python dub.py es cancer-eng-audio.m4a
     python dub.py tl cancer-eng-audio.m4a
+    python dub.py es tl pt hi fr scorpio-eng.mp3
 
 Requirements: see requirements.txt. A GPU is strongly recommended for the
 voice cloning step (VoxCPM2). This runs on RunPod, a cloud GPU service.
@@ -286,8 +293,7 @@ def dub_audio(audio: Path, segments, translations, lang):
     return out_mp3
 
 
-def main(lang, audio_files):
-    _, lang_name, _ = LANGUAGES[lang]
+def main(langs, audio_files):
     for a in audio_files:
         audio = Path(a)
         if not audio.exists():
@@ -295,14 +301,16 @@ def main(lang, audio_files):
             continue
         print(f"Transcribing: {audio.name}", flush=True)
         segments = transcribe(audio)
-        print(
-            f"Translating {len(segments)} segments to {lang_name}...",
-            flush=True,
-        )
-        translations = translate_segments(segments, lang)
-        print(f"Dubbing to {lang_name} in your voice...", flush=True)
-        out_mp3 = dub_audio(audio, segments, translations, lang)
-        print(f"Done: {out_mp3}", flush=True)
+        for lang in langs:
+            _, lang_name, _ = LANGUAGES[lang]
+            print(
+                f"Translating {len(segments)} segments to {lang_name}...",
+                flush=True,
+            )
+            translations = translate_segments(segments, lang)
+            print(f"Dubbing to {lang_name} in your voice...", flush=True)
+            out_mp3 = dub_audio(audio, segments, translations, lang)
+            print(f"Done: {out_mp3}", flush=True)
 
 
 if __name__ == "__main__":
@@ -310,8 +318,14 @@ if __name__ == "__main__":
         print(__doc__)
         print(f"Supported languages: {', '.join(sorted(LANGUAGES))}")
         sys.exit(1)
-    lang = sys.argv[1].lower()
-    if lang not in LANGUAGES:
-        print(f"Unknown language '{lang}'. Supported: {', '.join(sorted(LANGUAGES))}")
+    args = sys.argv[1:]
+    langs = []
+    while args and args[0].lower() in LANGUAGES:
+        langs.append(args.pop(0).lower())
+    if not langs:
+        print(f"Unknown language '{sys.argv[1]}'. Supported: {', '.join(sorted(LANGUAGES))}")
         sys.exit(1)
-    main(lang, sys.argv[2:])
+    if not args:
+        print("No audio files given.")
+        sys.exit(1)
+    main(langs, args)
