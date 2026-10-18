@@ -41,7 +41,7 @@ VOXCPM_MODEL = "openbmb/VoxCPM2"
 LANGUAGES = {
     "es": ("Helsinki-NLP/opus-mt-en-es", "Spanish", "es"),
     "tl": ("Helsinki-NLP/opus-mt-en-tl", "Tagalog", "tl"),
-    "pt": ("Helsinki-NLP/opus-mt-en-pt", "Portuguese", "pt"),
+    "pt": ("Helsinki-NLP/opus-mt-tc-big-en-pt", "Portuguese", "pt"),
     "hi": ("Helsinki-NLP/opus-mt-en-hi", "Hindi", "hi"),
     "fr": ("Helsinki-NLP/opus-mt-en-fr", "French", "fr"),
 }

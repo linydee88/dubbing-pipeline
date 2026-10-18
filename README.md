@@ -21,7 +21,7 @@ No lip sync needed if your video doesn't show your face (hands-only tutorials, c
 |------|----------|-------------------|
 | `es` | Spanish | Helsinki-NLP/opus-mt-en-es ✅ verified |
 | `tl` | Tagalog | Helsinki-NLP/opus-mt-en-tl |
-| `pt` | Portuguese | Helsinki-NLP/opus-mt-en-pt |
+| `pt` | Portuguese | Helsinki-NLP/opus-mt-tc-big-en-pt |
 | `hi` | Hindi | Helsinki-NLP/opus-mt-en-hi |
 | `fr` | French | Helsinki-NLP/opus-mt-en-fr |
 
