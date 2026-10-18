@@ -41,6 +41,9 @@ VOXCPM_MODEL = "openbmb/VoxCPM2"
 LANGUAGES = {
     "es": ("Helsinki-NLP/opus-mt-en-es", "Spanish", "es"),
     "tl": ("Helsinki-NLP/opus-mt-en-tl", "Tagalog", "tl"),
+    "pt": ("Helsinki-NLP/opus-mt-en-pt", "Portuguese", "pt"),
+    "hi": ("Helsinki-NLP/opus-mt-en-hi", "Hindi", "hi"),
+    "fr": ("Helsinki-NLP/opus-mt-en-fr", "French", "fr"),
 }
 
 # Proper-noun corrections per language: applied to the translation before
@@ -60,6 +63,15 @@ CORRECTIONS = {
     },
     "tl": {
         # Add Tagalog corrections here as you find them
+    },
+    "pt": {
+        # Add Portuguese corrections here as you find them
+    },
+    "hi": {
+        # Add Hindi corrections here as you find them
+    },
+    "fr": {
+        # Add French corrections here as you find them
     },
 }
 

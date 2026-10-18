@@ -1,6 +1,6 @@
 # Open-Source Video Dubbing Pipeline
 
-Dub your videos into Spanish or Tagalog in **your own voice**. This runs on RunPod, a cloud GPU service. The only cost is the GPU time while it processes your video. No subscriptions, no per-minute fees, no caps.
+Dub your videos into Spanish, Tagalog, Portuguese, Hindi, or French in **your own voice**. This runs on RunPod, a cloud GPU service. The only cost is the GPU time while it processes your video. No subscriptions, no per-minute fees, no caps.
 
 Created by [Liny Dee](https://www.stan.store/linydee) for creators who want to reach new audiences without paying for expensive AI dubbing services.
 
@@ -21,6 +21,9 @@ No lip sync needed if your video doesn't show your face (hands-only tutorials, c
 |------|----------|-------------------|
 | `es` | Spanish | Helsinki-NLP/opus-mt-en-es ✅ verified |
 | `tl` | Tagalog | Helsinki-NLP/opus-mt-en-tl |
+| `pt` | Portuguese | Helsinki-NLP/opus-mt-en-pt |
+| `hi` | Hindi | Helsinki-NLP/opus-mt-en-hi |
+| `fr` | French | Helsinki-NLP/opus-mt-en-fr |
 
 ## What is verified
 
@@ -55,6 +58,9 @@ No lip sync needed if your video doesn't show your face (hands-only tutorials, c
    ```bash
    python dub.py es your-audio.m4a    # Spanish
    python dub.py tl your-audio.m4a    # Tagalog
+   python dub.py pt your-audio.m4a    # Portuguese
+   python dub.py hi your-audio.m4a    # Hindi
+   python dub.py fr your-audio.m4a    # French
    ```
 7. Download the `your-audio_dubbed_es.mp3` (or `_dubbed_tl.mp3`) file when it's done
 8. Drop it onto your video in CapCut, Premiere, or any editor
